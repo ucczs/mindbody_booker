@@ -12,8 +12,12 @@ from pyvirtualdisplay import Display
 
 import time
 import datetime
-import locale
 import sys
+import argparse
+import os
+# import locale
+
+import config_reader
 
 # needs to be set by the user
 from credentials import USERNAME
@@ -46,6 +50,7 @@ def get_workout_index(workout_index_list, day, time, type):
                 return workout[0]
     else:
         print(f"Requested workout doesn't exists: {day}, {time}, {type}")
+        print(f"Following workouts could be found:\n{workout_index_list}\n")
         sys.exit(1)
 
 
@@ -66,15 +71,8 @@ def login(driver):
 def switch_to_kursplan(driver):
     wait = WebDriverWait(driver, 10)
 
-    # Wait for the login process to complete and find the "KURSPLAN" button
-    # wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="tabTD7"]')))
     wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="tabA7"]')))
-    # wait.until(EC.presence_of_element_located((By.XPATH, '/html/body/div[4]/div[1]/div[1]/div[4]/div/div/table/tbody/tr/td[1]/table/tbody/tr/td[2]')))
-
-    # Click the "KURSPLAN" button and find the "Sign Up Now" link
-    # kursplan_button = driver.find_element(By.XPATH, '//*[@id="tabTD7"]')
     kursplan_button = driver.find_element(By.XPATH, '//*[@id="tabA7"]')
-    # kursplan_button = driver.find_element(By.XPATH, '/html/body/div[4]/div[1]/div[1]/div[4]/div/div/table/tbody/tr/td[1]/table/tbody/tr/td[2]')
     kursplan_button.click()
 
 def next_week(driver):
@@ -126,7 +124,7 @@ def get_workout_index_list(driver):
 
     return workout_index_list    
 
-def get_next_weekday_to_book():
+def get_todays_weekday():
     # locale.setlocale(locale.LC_TIME, "de_DE")
     today = datetime.datetime.today()
     weekday_translation_dict = {
@@ -177,7 +175,7 @@ def check_for_success(driver):
             print("Something went wrong with the booking. Either")
 
     except NoSuchElementException:
-        weekday = get_next_weekday_to_book()
+        weekday = get_todays_weekday()
         print(f"Problems with the booking.. For day: {weekday}")
     except TimeoutException:
         print("Success element could not be found. Are you already signed up for this class?")
@@ -187,14 +185,42 @@ def get_date_in_x_days(days):
     two_weeks = today + datetime.timedelta(days=days)
     return two_weeks
 
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Description of your program')
+    parser.add_argument('-c', '--config', type=str, required=True, help='Path to YAML config file. The config file lists the days, hours and types of workouts you want to book.')
+    parser.add_argument('-d', '--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('-hl', '--headless', action='store_true', help='Enable headless mode')
+
+    args = parser.parse_args()
+
+    config_path = args.config
+    debug_mode = args.debug
+    headless_mode = args.headless
+
+    if not os.path.isfile(config_path):
+        raise argparse.ArgumentTypeError(f'{config_path} does not exist or is not a file')
+    
+    return config_path, debug_mode, headless_mode
+
+
 def main():
-    display = Display(visible=0, size=(800, 600))
-    display.start()
-    options = Options()
-    options = webdriver.ChromeOptions()
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    driver = webdriver.Chrome('/usr/bin/chromedriver', options=options)
+    config_path, debug_mode, headless_mode = parse_arguments()
+    
+    desired_bookings = config_reader.BookingConfig(config_path)
+    print("Requested bookings:")
+    print(desired_bookings)
+
+    if headless_mode:
+        display = Display(visible=0, size=(800, 600))
+        display.start()
+        options = Options()
+        options = webdriver.ChromeOptions()
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        driver = webdriver.Chrome('/usr/bin/chromedriver', options=options)
+    else:
+        driver = webdriver.Chrome()
 
     login(driver)
     switch_to_kursplan(driver)
@@ -203,17 +229,23 @@ def main():
     next_week(driver)
     workout_index_list = get_workout_index_list(driver)
 
-    desired_day = get_next_weekday_to_book()
-    desired_time = "06:00  CEST"
-    desired_type = "WOD"
+    weekday_today = get_todays_weekday()
+    slot = desired_bookings.get_booking_of_weekday(weekday_today)
 
-    date = get_date_in_x_days(14)
-    print(f"Try to book workout: {date}, {desired_day}, {desired_time}, {desired_type}")
-    workout_index = get_workout_index(workout_index_list, desired_day, desired_time, desired_type)
+    if slot != None:
+        desired_day = slot['weekday']
+        desired_time = slot['time']
+        desired_type = slot['type']
 
-    sign_up_botton(driver, workout_index)
-    submit_botton(driver)
-    check_for_success(driver)
+        date = get_date_in_x_days(14)
+        print(f"Try to book workout: {date}, {desired_day}, {desired_time}, {desired_type}")
+        workout_index = get_workout_index(workout_index_list, desired_day, desired_time, desired_type)
+
+        sign_up_botton(driver, workout_index)
+        submit_botton(driver)
+        check_for_success(driver)
+    else:
+        print("Nothing to book for today desired.")
 
     driver.quit()
     
