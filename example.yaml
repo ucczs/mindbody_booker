@@ -1,15 +1,15 @@
 - weekday: Montag
-  time: "06:00 CEST"
+  time: "06:00  CEST"
   type: WOD
 - weekday: Dienstag
-  time: "06:00 CEST"
+  time: "06:00  CEST"
   type: WOD
 - weekday: Mittwoch
-  time: "06:00 CEST"
+  time: "06:00  CEST"
   type: WOD
 - weekday: Donnerstag
-  time: "06:00 CEST"
+  time: "06:00  CEST"
   type: WOD
 - weekday: Freitag
-  time: "06:00 CEST"
+  time: "06:00  CEST"
   type: WOD

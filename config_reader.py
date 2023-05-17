@@ -7,6 +7,10 @@ class WorkoutSlot:
         self.hour = hour
         self.type = type
 
+    def __str__(self):
+        str_return = f"day: {self.weekday}, time: {self.hour}, type: {self.type}"
+        return str_return
+
 
 class BookingConfig:
     EXPECTED_STRUCTURE = {
@@ -17,12 +21,12 @@ class BookingConfig:
 
     def __init__(self, config_file):
         self.config_file = config_file
-        self.dresired_slots = []
+        self.desired_slots = []
         self._readInYaml()
 
     def __str__(self):
         output = ''
-        for workout in self.dresired_slots:
+        for workout in self.desired_slots:
             output += workout.weekday + ", " + workout.hour + ", " + workout.type + "\n"
         return output
 
@@ -36,7 +40,7 @@ class BookingConfig:
                 time = item['time']
                 exercise_type = item['type']
                 new_slot = WorkoutSlot(weekday, time, exercise_type)
-                self.dresired_slots.append(new_slot)
+                self.desired_slots.append(new_slot)
 
     def _checkYamlStructure(self, yaml_data):
         for item in yaml_data:
@@ -50,6 +54,6 @@ class BookingConfig:
 
     def get_booking_of_weekday(self, weekday):
         for desired_slot in self.desired_slots:
-            if desired_slot['weekday'] == weekday:
+            if desired_slot.weekday == weekday:
                 return desired_slot
         return None

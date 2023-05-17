@@ -15,14 +15,14 @@ import datetime
 import sys
 import argparse
 import os
-# import locale
+import logging
 
 import config_reader
 
 # needs to be set by the user
 from credentials import USERNAME
 from credentials import PASSWORD
-from credentials import WEBSITE
+from credentials import STUDIO_ID
 
 
 def get_weekday(driver, line_cnt):
@@ -44,18 +44,18 @@ def get_workout_index(workout_index_list, day, time, type):
     for workout in workout_index_list:
         if workout[1] == day and workout[2] == time and workout[3] == type:
             if workout[4] != "book":
-                print(f"Booking not possible for {day}, {time}, {type}")
+                logger.error(f"Booking not possible for {day}, {time}, {type}")
                 sys.exit(1)
             else:
                 return workout[0]
     else:
-        print(f"Requested workout doesn't exists: {day}, {time}, {type}")
-        print(f"Following workouts could be found:\n{workout_index_list}\n")
+        logging.warning(f"Requested workout doesn't exists: {day}, {time}, {type}")
+        logging.warning(f"Following workouts could be found:\n{workout_index_list}\n")
         sys.exit(1)
 
 
 def login(driver):
-    driver.get(WEBSITE)
+    driver.get(f"https://clients.mindbodyonline.com/ASP/ws.asp?studioId={STUDIO_ID}")
 
     # Wait for the page to load and find the username and password input fields
     wait = WebDriverWait(driver, 10)
@@ -117,7 +117,6 @@ def get_workout_index_list(driver):
 
             skip_counter = 0
         except Exception as e:
-            # print(e)
             skip_counter += 1
 
         line_counter += 1
@@ -147,7 +146,7 @@ def sign_up_botton(driver, index):
         sign_button.click()
 
     except NoSuchElementException:
-        print(f"Problems with the booking, sign up botton was not found.")
+        logging.error(f"Problems with the booking, sign up botton was not found.")
 
 def submit_botton(driver):
     wait = WebDriverWait(driver, 10)
@@ -158,9 +157,9 @@ def submit_botton(driver):
         finalize_booking = driver.find_element(By.XPATH, x_path_finalize_booking)
         finalize_booking.click()
     except NoSuchElementException:
-        print("Problems with the booking, submit botton was not found.")
+        logging.error("Problems with the booking, submit botton was not found.")
     except TimeoutException:
-        print("Booking could not be finalized. Submit button was pressed but no success")
+        logging.error("Booking could not be finalized. Submit button was pressed but no success")
     
 
 def check_for_success(driver):
@@ -170,15 +169,15 @@ def check_for_success(driver):
         wait.until(EC.presence_of_element_located((By.XPATH, x_path_successful_book)))
         successful_book = driver.find_element(By.XPATH, x_path_successful_book)
         if "You've Booked" in successful_book.text:
-            print("Booking was successful!")
+            logging.info("Booking was successful!")
         else:
-            print("Something went wrong with the booking. Either")
+            logging.error("Something went wrong with the booking.")
 
     except NoSuchElementException:
         weekday = get_todays_weekday()
-        print(f"Problems with the booking.. For day: {weekday}")
+        logging.error(f"Problems with the booking.. For day: {weekday}")
     except TimeoutException:
-        print("Success element could not be found. Are you already signed up for this class?")
+        logging.warning("Success element could not be found. Are you already signed up for this class?")
 
 def get_date_in_x_days(days):
     today = datetime.date.today()
@@ -204,12 +203,41 @@ def parse_arguments():
     return config_path, debug_mode, headless_mode
 
 
+def get_logger(debug_mode):
+    file_logging = False
+
+    if debug_mode:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(log_level)
+
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    if file_logging:
+        file_handler = logging.FileHandler('log_file.log')
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    return logger
+
+
 def main():
     config_path, debug_mode, headless_mode = parse_arguments()
+    global logger
+    logger = get_logger(debug_mode)
     
     desired_bookings = config_reader.BookingConfig(config_path)
-    print("Requested bookings:")
-    print(desired_bookings)
+    logger.info("Requested bookings:")
+    logger.info(desired_bookings)
 
     if headless_mode:
         display = Display(visible=0, size=(800, 600))
@@ -233,19 +261,19 @@ def main():
     slot = desired_bookings.get_booking_of_weekday(weekday_today)
 
     if slot != None:
-        desired_day = slot['weekday']
-        desired_time = slot['time']
-        desired_type = slot['type']
+        desired_day = slot.weekday
+        desired_time = slot.hour
+        desired_type = slot.type
 
         date = get_date_in_x_days(14)
-        print(f"Try to book workout: {date}, {desired_day}, {desired_time}, {desired_type}")
+        logging.info(f"Try to book workout: {date}, {desired_day}, {desired_time}, {desired_type}")
         workout_index = get_workout_index(workout_index_list, desired_day, desired_time, desired_type)
 
         sign_up_botton(driver, workout_index)
         submit_botton(driver)
         check_for_success(driver)
     else:
-        print("Nothing to book for today desired.")
+        logging.info("No booking for today desired.")
 
     driver.quit()
     
