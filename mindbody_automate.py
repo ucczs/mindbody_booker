@@ -148,18 +148,22 @@ def sign_up_botton(driver, index):
     except NoSuchElementException:
         logging.error(f"Problems with the booking, sign up botton was not found.")
 
-def submit_botton(driver):
+def submit_botton(driver, enroll_index):
     wait = WebDriverWait(driver, 10)
 
     try:
-        x_path_finalize_booking = f'//*[@id="SubmitEnroll1"]'
+        x_path_finalize_booking = f'//*[@id="SubmitEnroll{enroll_index}"]'
         wait.until(EC.presence_of_element_located((By.XPATH, x_path_finalize_booking)))
         finalize_booking = driver.find_element(By.XPATH, x_path_finalize_booking)
         finalize_booking.click()
+        logging.info("Submit botton was successfully, class booked!")
+        return True
     except NoSuchElementException:
         logging.error("Problems with the booking, submit botton was not found.")
+        return False
     except TimeoutException:
         logging.error("Booking could not be finalized. Submit button was pressed but no success")
+        return False
     
 
 def check_for_success(driver):
@@ -270,7 +274,8 @@ def main():
         workout_index = get_workout_index(workout_index_list, desired_day, desired_time, desired_type)
 
         sign_up_botton(driver, workout_index)
-        submit_botton(driver)
+        if not submit_botton(driver, 1):
+            submit_botton(driver, 2)
         check_for_success(driver)
     else:
         logging.info("No booking for today desired.")
